@@ -1,0 +1,50 @@
+% Efeito das retransmissões e da posição na sala.
+\begin{figure}[!htb]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=1 by 2, vertical sep=2.3cm},
+  width=0.8\textwidth, height=5.4cm,
+  grid=both, grid style={gray!18},
+  label style={font=\small}, tick label style={font=\footnotesize},
+  legend style={font=\footnotesize,fill=white,fill opacity=0.9,text opacity=1,
+                draw=gray!50,inner sep=2pt},
+]
+\nextgroupplot[xmode=log,ymode=log,
+  xlabel={BER do enlace}, ylabel={tempo da troca (ms)},
+  xmin=1e-7,xmax=3e-3, legend pos=north west,
+  title style={font=\footnotesize}, title={(a) efeito das retransmissões}]
+  \addplot[black,line width=0.9pt] table[x=ber,y=MLKEM512] {data/arq_ber.dat};
+  \addlegendentry{ML-KEM-512}
+  \addplot[black!60,densely dashed,line width=0.9pt]
+    table[x=ber,y=MLKEM768] {data/arq_ber.dat};
+  \addlegendentry{ML-KEM-768}
+  \addplot[black,dashdotted,line width=0.9pt] table[x=ber,y=HQC128] {data/arq_ber.dat};
+  \addlegendentry{HQC-128}
+
+\nextgroupplot[ymode=log,
+  xlabel={posição do receptor $x$ (m), com $y=0$},
+  ylabel={tempo da troca (ms)},
+  xmin=-2.5,xmax=2.5, ymin=20, ymax=4000,
+  legend style={at={(0.5,0.96)},anchor=north},
+  title style={font=\footnotesize}, title={(b) efeito da posição na sala}]
+  \addplot[black,line width=0.9pt]
+    table[x=x,y=t_total_ms_ML-KEM-512] {data/handshake_position.dat};
+  \addlegendentry{ML-KEM-512}
+  \addplot[black!60,densely dashed,line width=0.9pt]
+    table[x=x,y=t_total_ms_ML-KEM-768] {data/handshake_position.dat};
+  \addlegendentry{ML-KEM-768}
+  \node[font=\footnotesize,anchor=north,fill=white,inner sep=1.5pt] at (axis cs:0,37)
+    {$\val{PosCentreMs}$\,ms};
+  \node[font=\footnotesize,anchor=east] at (axis cs:2.25,1100)
+    {$\val{PosEdgeMs}$\,ms $\rightarrow$};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Erros de transmissão e o custo da troca de chaves, pela
+Eq.~\eqref{eq:ths}, a $400$\,kbit/s. (a) Como todo pacote corrompido é
+reenviado, um aumento modesto da BER vira um aumento acentuado do tempo.
+(b) Com a BER de cada posição (Figura~\ref{fig:snr}), o tempo do ML-KEM-512
+cresce de $\val{PosCentreMs}$\,ms sob a luminária para $\val{PosEdgeMs}$\,ms
+junto à parede, um fator de $\val{PosRatio}$.}
+\label{fig:position}
+\end{figure}

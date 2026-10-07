@@ -1,0 +1,7 @@
+kem,operation,cycles,time_ms,notes
+ML-KEM-512,keygen,,15.24,valores ilustrativos para mostrar o formato
+ML-KEM-512,encaps,,17.10,
+ML-KEM-512,decaps,,18.57,
+ML-KEM-768,keygen,,24.90,
+ML-KEM-768,encaps,,27.60,
+ML-KEM-768,decaps,,30.10,

@@ -1,0 +1,30 @@
+% SNR e BER ao longo da sala (y = 0), a partir do modelo do enlace.
+\begin{figure}[!htb]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=1 by 2, vertical sep=0.6cm, x descriptions at=edge bottom},
+  width=0.8\textwidth, height=4.6cm,
+  xmin=-2.5, xmax=2.5, grid=both, grid style={gray!18},
+  label style={font=\small}, tick label style={font=\footnotesize},
+  xlabel={posição do receptor $x$ (m), com $y=0$},
+]
+\nextgroupplot[ylabel={SNR (dB)}, ymin=17, ymax=26]
+  \addplot[black,line width=0.9pt] table[x=x,y=snr_db] {data/handshake_position.dat};
+  \node[font=\footnotesize,anchor=north] at (axis cs:0,22.6) {sob a luminária};
+  \draw[gray!60,->] (axis cs:0,22.7) -- (axis cs:0,24.7);
+  \node[font=\footnotesize,anchor=south west] at (axis cs:-2.45,17.3) {parede};
+\nextgroupplot[ymode=log, ylabel={BER}, ymin=1e-9, ymax=1e-2,
+  ytick={1e-8,1e-6,1e-4,1e-2}]
+  \addplot[black,line width=0.9pt] table[x=x,y=ber] {data/handshake_position.dat};
+  \addplot[gray!70,densely dashed,domain=-2.5:2.5] {1e-5};
+  \node[font=\footnotesize,anchor=south,gray!40!black] at (axis cs:0,1.2e-5)
+    {$10^{-5}$: um bit errado em $100\,000$};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Qualidade do sinal ao longo da sala, pelas Eqs.~\eqref{eq:snr}
+e~\eqref{eq:ber}. A SNR cai apenas $\val{PosSnrDrop}$\,dB do centro até a
+parede, mas a BER sobe cinco ordens de grandeza, de cerca de
+$10^{\val{PosCentreBerExp}}$ para $\val{PosEdgeBer}$.}
+\label{fig:snr}
+\end{figure}

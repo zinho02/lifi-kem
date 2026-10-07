@@ -1,0 +1,89 @@
+% =====================================================================
+\section{Trabalhos Relacionados}\label{sec:related}
+% =====================================================================
+Os trabalhos relevantes para este artigo dividem-se em três grupos: segurança
+para comunicação por luz visível, que modela o enlace óptico, mas não a troca
+de chaves pós-quântica; criptografia pós-quântica em dispositivos restritos,
+que modela o processamento, mas não o enlace; e uma proposta recente que
+combina os dois temas.
+
+\subsection{Segurança para Comunicação por Luz Visível}
+Os levantamentos de Blinowski~\cite{blinowski2019vlcsec} e de Arfaoui
+\emph{et al.}~\cite{arfaoui2020plsvlc} estabelecem que a natureza de difusão do
+canal óptico expõe a VLC à escuta dentro da área iluminada e catalogam duas
+famílias de contramedidas.
+
+A primeira é a segurança de camada física \emph{sem chaves}, que explora a
+geometria do canal para dar ao receptor legítimo uma vantagem sobre o espião,
+por meio de formação de feixe, ruído artificial ou argumentos de capacidade de
+sigilo~\cite{arfaoui2020plsvlc}. Guo \emph{et al.}~\cite{guo2025skavlc}, por
+exemplo, obtêm limites para a capacidade de geração de chave secreta em um
+enlace com um único LED, sob a restrição de amplitude do LED, e mostram que uma
+taxa de chave positiva se mantém mesmo quando o canal do espião é tão bom
+quanto o legítimo. Dang \emph{et al.}~\cite{dang2020qkdvlc} seguem um caminho
+óptico-quântico e analisam a distribuição quântica de chaves com variáveis
+contínuas sobre VLC em ambientes internos. As duas abordagens geram material de
+chave a partir de propriedades físicas do enlace; a primeira depende de uma
+vantagem de canal que a instalação precisa garantir, e a segunda, de hipóteses
+ópticas muito além dos LEDs comuns.
+
+A segunda família é a \emph{cifração na camada física}, na qual o sinal OFDM é
+embaralhado com chaves que mudam a cada quadro. Al-Moliki \emph{et al.} extraem
+bits de chave da polaridade do prefixo cíclico~\cite{almoliki2016keygen},
+estendem a ideia com mapas caóticos~\cite{almoliki2019chaos} e propõem um
+esquema leve e independente do canal para VLC-IoT, que dispensa realimentação
+do estado do canal~\cite{almoliki2022lci}; Melki
+\emph{et al.}~\cite{melki2019dynamic} descrevem uma cifra OFDM de chave
+dinâmica comparável, para rádio. Esses esquemas modelam o canal óptico em
+detalhe, mas compartilham uma hipótese: a chave de sessão de longo prazo, da
+qual derivam as chaves de cada quadro, é estabelecida previamente por
+criptografia de chave pública convencional, e essa troca fica fora do escopo
+dos trabalhos. Se for uma troca baseada em curvas elípticas, o esquema inteiro
+herda a sua exposição a um futuro adversário quântico. Nenhum desses trabalhos
+considera quanto custaria realizar uma troca pós-quântica pelo mesmo enlace,
+que é a pergunta tratada aqui.
+
+\subsection{Criptografia Pós-Quântica em Dispositivos Restritos}
+A viabilidade dos KEMs baseados em reticulados em microcontroladores é hoje uma
+questão resolvida. O projeto pqm4 mantém um ambiente de medição e implementações
+otimizadas para o ARM Cortex-M4, a plataforma de referência de fato para
+medições de criptografia pós-quântica embarcada~\cite{pqm4}; seus números
+colocam uma geração de chaves, um encapsulamento e um desencapsulamento
+completos do ML-KEM-512 bem dentro do orçamento de um nó sensor. Chen e
+Chou~\cite{chen2021mceliece} mostram que até o Classic McEliece, cuja chave
+pública excede a memória RAM da placa-alvo, pode ser executado no mesmo
+processador mantendo a chave na memória flash. Bürstinghaus-Steinbach
+\emph{et al.}~\cite{burstinghaus2020pqm} integram o Kyber e o SPHINCS$^{+}$ a
+uma pilha TLS embarcada em hardware da classe do ESP32, e Segatz e
+Al~Hafiz~\cite{segatz2025kyberesp32} aceleram o Kyber no ESP32 usando seus dois
+núcleos e seu coprocessador de hash.
+
+Duas observações dessa literatura orientam o nosso método. Primeiro, esses
+estudos medem processamento, memória e energia de forma isolada; a rede
+aparece, quando aparece, como um enlace rápido, com fio ou por rádio, cujo
+tempo de transmissão é desprezível. Essa é justamente a hipótese que o Li-Fi
+para IoT quebra. Segundo, detalhes de implementação importam nas comparações:
+os ganhos de velocidade relatados em~\cite{segatz2025kyberesp32} para o ESP32
+valem para a variante ``90s'' do Kyber, que usa AES e SHA-2, ao passo que o
+ML-KEM padronizado usa SHAKE, que o acelerador de hash do ESP32 não implementa.
+Por isso, tomamos os tempos de processamento das medições do pqm4 no Cortex-M4,
+que cobrem o algoritmo padronizado.
+
+\subsection{Troca de Chaves Pós-Quântica para Li-Fi}
+O trabalho mais próximo do nosso é o de Nurmurodov
+\emph{et al.}~\cite{nurmurodov2025esp32}, que propõem um nó sensor Li-Fi
+baseado no ESP32, o qual estabelece chaves de sessão com um KEM de reticulados
+e protege os dados com cifração autenticada. A arquitetura deles e a nossa
+coincidem no essencial: uma troca de chaves com KEM, em duas mensagens, pelo
+enlace óptico, seguida de cifração simétrica com a chave derivada. A avaliação
+deles, porém, não contém camada física. Não se especifica modelo de canal,
+modulação, taxa do enlace ou taxa de erro, e o conjunto de parâmetros do KEM é
+descrito apenas como ``Kyber-lite''. A latência da troca que eles relatam é,
+portanto, um número único, que não pode ser dividido em processamento e
+transmissão e que não diz como a troca se comporta quando a taxa do enlace ou a
+posição do nó mudam.
+
+Este artigo preenche essa lacuna. Ao acoplar uma implementação validada do
+ML-KEM a um modelo explícito do enlace óptico, conseguimos separar os dois
+custos, localizar a taxa em que um supera o outro e mostrar como esse
+equilíbrio muda ao longo de uma sala.

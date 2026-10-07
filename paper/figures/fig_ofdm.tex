@@ -1,0 +1,59 @@
+% Cadeia de transmissão e recepção DCO-OFDM.  TikZ puro.
+\begin{figure}[!htb]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  blk/.style={draw,rounded corners=1.5pt,align=center,inner sep=3pt,
+              minimum height=10mm,minimum width=15mm,fill=black!4},
+  opt/.style={blk,fill=black!14},
+  every path/.style={>=latex,->},
+  node distance=3.6mm
+]
+% ------------------------------ transmissor ------------------------------
+\node (bits) {bits};
+\node[blk,right=of bits]   (qam)  {mapa\\QAM};
+\node[blk,right=of qam]    (herm) {simetria\\hermit.};
+\node[blk,right=of herm]   (ifft) {IFFT};
+\node[blk,right=of ifft]   (cp)   {insere\\prefixo};
+\node[blk,right=of cp]     (dc)   {nível DC\\+ ceifam.};
+\node[opt,right=of dc]     (led)  {LED};
+\draw (bits) -- (qam);
+\draw (qam) -- (herm);
+\draw (herm) -- (ifft);
+\draw (ifft) -- (cp);
+\draw (cp) -- (dc);
+\draw (dc) -- (led);
+\node[anchor=south west,font=\footnotesize\itshape,inner sep=1pt]
+     at ([yshift=2.5mm]qam.north west) {transmissor};
+
+% --------------------------------- canal ---------------------------------
+\node[draw,dashed,rounded corners=1.5pt,align=center,inner sep=3pt,
+      below=6mm of led] (ch)
+     {$h(x,y)$\\$+$ ruído};
+\draw (led) -- (ch);
+
+% -------------------------------- receptor --------------------------------
+\node[opt,below=6mm of ch]  (pd)   {PD};
+\node[blk,left=of pd]       (rcp)  {remove\\prefixo};
+\node[blk,left=of rcp]      (fft)  {FFT};
+\node[blk,left=of fft]      (eq)   {equali-\\zação};
+\node[blk,left=of eq]       (sel)  {mantém\\$k<\!N/2$};
+\node[blk,left=of sel]      (dem)  {demapa\\QAM};
+\node[left=of dem]          (obits){bits};
+\draw (ch) -- (pd);
+\draw (pd) -- (rcp);
+\draw (rcp) -- (fft);
+\draw (fft) -- (eq);
+\draw (eq) -- (sel);
+\draw (sel) -- (dem);
+\draw (dem) -- (obits);
+\node[anchor=north west,font=\footnotesize\itshape,inner sep=1pt]
+     at ([yshift=-2.5mm]dem.south west) {receptor};
+\end{tikzpicture}
+\caption{Cadeia DCO-OFDM. A simetria hermitiana da Eq.~\eqref{eq:hermitian}
+torna real a saída da IFFT, para que ela possa acionar um LED; o nível DC e o
+ceifamento a tornam não negativa. Só $N/2-1$ subportadoras transportam dados, o
+que fixa a carga de um símbolo na Eq.~\eqref{eq:bsym}. Os blocos sombreados são
+ópticos.}
+\label{fig:ofdm}
+\end{figure}

@@ -1,0 +1,281 @@
+% =====================================================================
+\section{Fundamentos da Troca de Chaves Pós-Quântica}\label{sec:fund-pqc}
+% =====================================================================
+Esta seção explica, desde o início, por que um nó de IoT precisa combinar uma
+chave, como isso é feito hoje, por que os computadores quânticos ameaçam esse
+processo e como funciona o novo padrão do NIST, o ML-KEM, cujas mensagens são
+muito maiores.
+
+\subsection{Por que Dois Dispositivos Precisam de uma Chave em Comum}\label{sec:fund-sym}
+A maior parte dos dados que um sensor envia é protegida com criptografia
+\emph{simétrica}: emissor e receptor possuem a mesma chave secreta, e a mesma
+chave serve para cifrar e para decifrar. Cifras simétricas como o AES, ou a
+família leve Ascon, padronizada pelo NIST em 2025 para dispositivos
+restritos~\cite{sp800232}, são rápidas e baratas o bastante para qualquer
+microcontrolador.
+
+A criptografia simétrica deixa uma pergunta em aberto: como os dois
+dispositivos passam a ter a mesma chave? Um nó tirado da caixa e instalado em
+uma enfermaria nunca ``conheceu'' o ponto de acesso com o qual vai conversar, e
+tudo o que um diz ao outro trafega por um enlace que qualquer pessoa na sala
+pode observar (Seção~\ref{sec:fund-light}). Enviar a chave às claras a
+revelaria. Esse é o \emph{problema da distribuição de chaves}, e ele é
+resolvido pela \emph{criptografia de chave pública}. Uma analogia conhecida é a
+do cadeado aberto. Suponha que o ponto de acesso queira receber um segredo: ele
+envia ao nó um cadeado \emph{aberto} e guarda a única chave. O nó coloca um
+segredo recém-escolhido em uma caixa, fecha o cadeado e devolve a caixa.
+Qualquer um pode ver o cadeado e a caixa em trânsito, mas só o ponto de acesso
+consegue abri-la. Os algoritmos de chave pública usados neste artigo
+funcionam, em essência, como esse cadeado.
+
+\subsection{Troca de Chaves Clássica: Diffie--Hellman e X25519}\label{sec:fund-dh}
+A troca de chaves usada hoje em quase toda parte é a de Diffie--Hellman. Uma
+analogia popular usa tintas. As duas partes começam com uma cor comum e
+pública. Cada uma mistura a ela uma cor secreta e envia a mistura à outra. Em
+seguida, cada uma acrescenta a sua própria cor secreta ao que recebeu. As duas
+terminam com a mesma cor final, a cor comum mais os dois segredos, enquanto um
+observador que viu apenas as duas misturas não consegue separar os segredos,
+porque ``desmisturar'' tinta é difícil.
+
+Na versão matemática, ``misturar'' é uma operação sobre os pontos de uma curva
+elíptica, e ``desmisturar'' é o \emph{problema do logaritmo discreto em curvas
+elípticas}, para o qual não se conhece algoritmo clássico eficiente. A variante
+mais usada, a X25519~\cite{bernstein2006curve25519,rfc7748}, é compacta: cada
+parte envia um único valor de 32 bytes, de modo que a troca completa movimenta
+$\val{X25519Bytes}$ bytes. Ela também é barata o bastante para rodar em um
+microcontrolador. Há duas décadas esse é o modo padrão de pequenos dispositivos
+combinarem uma chave.
+
+\subsection{A Ameaça Quântica}\label{sec:fund-quantum}
+Um \emph{computador quântico} processa informação usando efeitos da mecânica
+quântica e, para alguns problemas específicos, pode ser dramaticamente mais
+rápido do que qualquer computador comum. Um desses problemas é exatamente o que
+protege a troca de Diffie--Hellman. Em 1994, Peter Shor mostrou que um
+computador quântico suficientemente grande resolveria com eficiência tanto a
+fatoração de inteiros quanto o logaritmo discreto~\cite{shor1997}, o que
+quebraria o RSA, o Diffie--Hellman e a X25519.
+
+A criptografia simétrica resiste muito melhor. O melhor ataque quântico
+conhecido contra ela, o algoritmo de Grover, apenas acelera a busca exaustiva
+da chave por uma raiz quadrada, e o remédio usual, usar chaves mais longas,
+como o AES de 256 bits, é simples. O ponto fraco de uma implantação de IoT na
+era quântica não é, portanto, a cifração dos dados, e sim a \emph{troca de
+chaves} que a prepara.
+
+Não existe hoje um computador quântico grande o bastante para executar o
+algoritmo de Shor contra chaves reais, e as estimativas de quando existirá
+variam muito. Por que se preocupar agora? Porque o atacante não precisa do
+computador quântico no momento do ataque. Ele pode gravar hoje uma sessão
+cifrada, armazená-la e decifrá-la quando a máquina estiver disponível: é a
+ameaça conhecida como \emph{colher agora, decifrar depois} (\emph{harvest now,
+decrypt later}). Mosca~\cite{mosca2018quantum} resume o prazo resultante em uma
+desigualdade simples. Seja $x$ o número de anos durante os quais os dados
+precisam permanecer confidenciais, $y$ o número de anos necessários para trocar
+a criptografia dos dispositivos já instalados e $z$ o número de anos até
+existir um computador quântico de grande porte. Então, se
+\begin{equation}
+x + y > z,
+\label{eq:mosca}
+\end{equation}
+os dados coletados hoje já estão expostos. Em IoT, os dois termos do lado
+esquerdo da Eq.~\eqref{eq:mosca} são grandes: dados médicos e industriais
+muitas vezes precisam permanecer privados por muitos anos, e dispositivos
+embarcados, uma vez instalados, podem ficar uma década sem atualização. É por
+isso que a migração para a criptografia pós-quântica é urgente justamente para
+o tipo de dispositivo considerado neste artigo.
+
+\emph{Criptografia pós-quântica} significa algoritmos comuns, que rodam em
+processadores comuns, projetados para resistir a ataques de computadores
+quânticos, além dos clássicos. Ela não exige hardware quântico, apenas software
+novo. O NIST conduziu uma competição aberta, de vários anos, para selecionar
+esses algoritmos; a Tabela~\ref{tab:nist} resume seus marcos.
+
+\begin{table}[!htb]
+\caption{Principais marcos da padronização pós-quântica do NIST.}
+\label{tab:nist}
+\centering
+\small
+\begin{tabular}{ll}
+\toprule
+ano & marco\\
+\midrule
+2016 & o NIST abre a chamada pública por algoritmos pós-quânticos\\
+2022 & CRYSTALS-Kyber é selecionado para estabelecimento de chaves\\
+2024 & publicação do FIPS 203 (ML-KEM, derivado do Kyber)~\cite{fips203}\\
+     & e do FIPS 204 (ML-DSA), para assinaturas~\cite{fips204}\\
+2025 & HQC é selecionado como segundo KEM, baseado em códigos~\cite{nisthqc2025};\\
+     & SP 800-227, com recomendações de uso de KEMs~\cite{sp800227}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Mecanismos de Encapsulamento de Chaves}\label{sec:fund-kem}
+O substituto pós-quântico do Diffie--Hellman é apresentado na forma de um
+\emph{mecanismo de encapsulamento de chaves} (KEM, \emph{key-encapsulation
+mechanism})~\cite{cramer2003kem,sp800227}. Um KEM é o cadeado da
+Seção~\ref{sec:fund-sym} em versão precisa. Ele é formado por três algoritmos:
+\begin{itemize}
+\item $\textsc{KeyGen}() \to (\ek, \dk)$ fabrica um cadeado novo e a sua chave:
+      uma \emph{chave de encapsulamento} pública $\ek$ e uma \emph{chave de
+      desencapsulamento} privada $\dk$;
+\item $\textsc{Encaps}(\ek) \to (K, \ct)$ escolhe um segredo aleatório novo $K$
+      e o tranca: o \emph{texto cifrado} $\ct$ é a caixa fechada;
+\item $\textsc{Decaps}(\dk, \ct) \to K$ abre a caixa e recupera $K$.
+\end{itemize}
+Em uma troca de chaves, uma parte executa \textsc{KeyGen} e envia $\ek$; a
+outra executa \textsc{Encaps}, guarda $K$ e devolve $\ct$; a primeira executa
+\textsc{Decaps} e passa a ter o mesmo $K$. Duas diferenças em relação ao
+Diffie--Hellman serão importantes adiante. As duas mensagens são objetos
+diferentes, de tamanhos diferentes, e as duas partes realizam quantidades
+diferentes de trabalho. Ambas afetam o comportamento da troca em um enlace de
+capacidade limitada.
+
+Um KEM precisa continuar seguro mesmo contra um atacante capaz de injetar
+textos cifrados de sua autoria e observar como o receptor reage. O nome formal
+dessa propriedade é segurança IND-CCA2. Os KEMs baseados em reticulados a
+obtêm com uma técnica chamada transformada de
+Fujisaki--Okamoto~\cite{fujisaki1999,hofheinz2017fo}: ao abrir uma caixa, o
+\textsc{Decaps} refaz a caixa a partir do que encontrou dentro dela e verifica
+se o resultado é idêntico à caixa recebida. Se um único bit for diferente, a
+caixa foi adulterada ou danificada.
+
+O que o \textsc{Decaps} faz em seguida é uma decisão de projeto sutil, mas
+importante. A escolha óbvia, devolver um erro, seria um equívoco: um atacante
+que possa enviar muitos textos cifrados modificados e observar quais produzem
+erro aprende algo com cada resposta, e ataques exatamente desse tipo já
+quebraram sistemas reais~\cite{bleichenbacher1998}. O ML-KEM usa, em vez disso,
+a \emph{rejeição implícita}: quando a verificação falha, ele devolve
+silenciosamente um valor de aparência aleatória, calculado a partir de uma
+semente secreta e do texto cifrado~\cite{fips203}. O atacante não aprende nada,
+e as duas partes legítimas simplesmente ficam com chaves diferentes, o que
+percebem na primeira tentativa de usá-las. Em um enlace ruidoso, essa é também
+a última linha de defesa contra erros de transmissão que escapem ao código de
+verificação da Seção~\ref{sec:fund-arq}.
+
+Um KEM, sozinho, não confirma a identidade de ninguém; ele apenas estabelece um
+segredo. Por isso, o NIST recomenda alimentar uma \emph{função de derivação de
+chaves} com esse segredo e com as mensagens trocadas~\cite{sp800227}. Uma
+função de derivação de chaves é construída a partir de uma \emph{função de
+hash}, um algoritmo que transforma qualquer entrada em uma ``impressão
+digital'' de tamanho fixo, de modo que entradas diferentes produzem, na
+prática, impressões diferentes. Derivar a chave de sessão do segredo do KEM e
+de uma impressão digital de toda a conversa amarra a chave àquela troca
+específica, de forma que uma troca adulterada gera uma chave inútil.
+
+\subsection{O ML-KEM e a Dificuldade das Equações com Ruído}\label{sec:fund-mlkem}
+O ML-KEM (\emph{Module-Lattice-based KEM}), padronizado como FIPS 203 e
+derivado do CRYSTALS-Kyber~\cite{fips203,bos2018kyber}, apoia-se em um problema
+fácil de enunciar e, até onde se sabe, difícil de resolver mesmo com um
+computador quântico: resolver um sistema de equações lineares em que cada
+equação recebeu um pequeno erro.
+
+Um exemplo de brinquedo transmite a ideia. Trabalhando módulo $17$, suponha
+que lhe informem
+\begin{equation}
+3s_1 + 5s_2 \equiv 2, \qquad 7s_1 + 2s_2 \equiv 9 \pmod{17}.
+\label{eq:toy}
+\end{equation}
+O sistema da Eq.~\eqref{eq:toy} pode ser resolvido por eliminação, exatamente
+como na álgebra escolar, e dá $s_1=2$, $s_2=6$. Suponha agora que cada lado
+direito tenha sido alterado por um pequeno valor aleatório, $-1$, $0$ ou $+1$,
+e que você não saiba qual. A eliminação multiplica e subtrai as equações, e
+multiplica e subtrai junto os erros ocultos; depois de alguns passos, os erros
+cresceram até o tamanho dos próprios números, e a resposta perde o sentido. Com
+duas incógnitas ainda é possível testar todas as possibilidades, mas no
+ML-KEM-512 o segredo tem $512$ incógnitas, muito além de qualquer busca
+exaustiva. Esse é o problema do \emph{aprendizado com erros} (LWE,
+\emph{learning with errors}), introduzido por Regev~\cite{regev2009lwe}; o
+ML-KEM usa uma variante estruturada, o LWE em \emph{módulos} (MLWE), que
+preserva a dificuldade e torna a aritmética muito mais
+rápida~\cite{langlois2015mlwe}.
+
+No ML-KEM, os números são substituídos por polinômios de 256 coeficientes, com
+toda a aritmética feita módulo $q=3329$. A chave pública contém uma matriz
+aleatória $\mathbf{A}$, de dimensão $k\times k$, formada por esses polinômios,
+e um vetor~\cite{fips203}
+\begin{equation}
+\mathbf{t} = \mathbf{A}\mathbf{s} + \mathbf{e},
+\label{eq:mlwe}
+\end{equation}
+em que o segredo $\mathbf{s}$ e o erro $\mathbf{e}$ têm coeficientes pequenos.
+A Eq.~\eqref{eq:mlwe} é o sistema com ruído da Eq.~\eqref{eq:toy} em escala
+muito maior: recuperar $\mathbf{s}$ a partir de $(\mathbf{A},\mathbf{t})$ é o
+problema difícil. A matriz $\mathbf{A}$ nunca é enviada de fato: os dois lados
+a regeneram a partir de uma semente $\rho$ de 32 bytes. A dimensão $k$ define o
+nível de segurança. A Tabela~\ref{tab:mlkem} lista os três conjuntos de
+parâmetros do padrão, que visam às categorias de segurança 1, 3 e 5 do NIST,
+aproximadamente tão difíceis de quebrar quanto o AES-128, o AES-192 e o
+AES-256.
+
+\begin{table}[!htb]
+\caption{Conjuntos de parâmetros do ML-KEM (FIPS 203). Tamanhos em bytes.
+$\delta$ é a probabilidade de uma troca honesta falhar por razões
+criptográficas.}
+\label{tab:mlkem}
+\centering
+\small
+\begin{tabular}{lcccccc}
+\toprule
+conjunto & $k$ & $(\eta_1;\eta_2)$ & $(d_u;d_v)$ & $|\ek|$ & $|\ct|$ & $\delta$\\
+\midrule
+ML-KEM-512  & 2 & (3; 2) & (10; 4) & \phantom{1}800  & \phantom{1}768  & $2^{-138{,}8}$\\
+ML-KEM-768  & 3 & (2; 2) & (10; 4) & 1184 & 1088 & $2^{-164{,}8}$\\
+ML-KEM-1024 & 4 & (2; 2) & (11; 5) & 1568 & 1568 & $2^{-174{,}8}$\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Os tamanhos das mensagens decorrem dessa estrutura, e vale a pena deduzi-los,
+porque eles determinam todos os resultados deste artigo. A chave de
+encapsulamento carrega $\mathbf{t}$, que são $k$ polinômios de 256
+coeficientes; cada coeficiente é um número menor que $3329$ e precisa de 12
+bits. Somando a semente de 32 bytes, obtém-se~\cite{fips203}
+\begin{equation}
+|\ek| = \frac{256\times12}{8}\,k + 32 = 384k + 32 \ \text{bytes},
+\label{eq:eksize}
+\end{equation}
+ou seja, $800$ bytes no ML-KEM-512, em que $k=2$. O texto cifrado é formado por
+$k+1$ polinômios \emph{comprimidos}, dos quais se guardam apenas $d_u$ ou $d_v$
+bits por coeficiente~\cite{fips203}:
+\begin{equation}
+|\ct| = 32\,(d_u k + d_v) \ \text{bytes},
+\label{eq:ctsize}
+\end{equation}
+o que dá $768$ bytes no ML-KEM-512. As Eqs.~\eqref{eq:eksize}
+e~\eqref{eq:ctsize} reproduzem todas as linhas da Tabela~\ref{tab:mlkem}. O
+segredo compartilhado $K$ tem sempre $32$ bytes. As probabilidades de falha
+$\delta$ da tabela são tão pequenas, abaixo de uma em $10^{41}$, que na prática
+uma troca honesta nunca falha por razões criptográficas. Em um enlace ruidoso,
+toda falha é uma falha de transmissão.
+
+Embora as chaves sejam grandes, o cálculo é rápido. A multiplicação de
+polinômios é feita com a transformada numérica (NTT), uma versão da FFT que
+trabalha com números inteiros, e toda a aleatoriedade e todo o hash usam o
+SHAKE, da família SHA-3~\cite{fips202}. Em um ARM Cortex-M4, uma geração de
+chaves do ML-KEM-512 leva menos de $400\,000$ ciclos, o que, pela
+Eq.~\eqref{eq:ciclos}, corresponde a cerca de $2{,}3$\,ms a
+$168$\,MHz~\cite{pqm4}.
+
+\subsection{Por que as Trocas de Chaves Pós-Quânticas São Grandes}\label{sec:fund-size}
+Colocar os números lado a lado torna visível a tensão central deste artigo.
+Uma troca X25519 movimenta $\val{X25519Bytes}$ bytes; uma troca ML-KEM-512
+movimenta $\val{MLKEM512Bytes}$, cerca de $25$ vezes mais. A diferença não é uma
+ineficiência do projeto: um problema de equações com ruído só é difícil se
+contiver muitas equações, e cada equação contribui com coeficientes que
+precisam ser transmitidos. A criptografia baseada em reticulados troca tamanho
+por velocidade. Ela é maior do que a de curvas elípticas no enlace, mas, como
+mostra a Seção~\ref{sec:results}, não é mais lenta para calcular em um
+microcontrolador.
+
+Outros KEMs pós-quânticos fazem trocas diferentes. Os esquemas \emph{baseados
+em códigos} apoiam-se na dificuldade de decodificar um código corretor de erros
+aleatório, problema estudado há mais de quarenta anos. O NIST selecionou o HQC
+em 2025 como segundo KEM padrão justamente para que um eventual avanço contra
+os reticulados não deixasse o mundo sem um padrão~\cite{nisthqc2025}. O BIKE
+foi uma alternativa próxima, e o Classic McEliece é o mais conservador de
+todos. Seus tamanhos, listados na Tabela~\ref{tab:kems}, têm formatos
+incomuns: o HQC-128 e o BIKE-L1 enviam alguns quilobytes em cada sentido,
+enquanto o Classic McEliece envia um texto cifrado minúsculo, de 96 bytes, mas
+exige uma chave pública de 255 quilobytes. Em um enlace no qual cada byte custa
+tempo de transmissão, esses formatos levam a resultados muito diferentes, que
+são o assunto do restante do artigo.

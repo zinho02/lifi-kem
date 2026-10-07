@@ -1,0 +1,502 @@
+%% Quanto Custa uma Troca de Chaves Pós-Quântica em um Enlace Li-Fi para IoT?
+%% Artigo de disciplina, em estilo tutorial, para leitores que não conhecem
+%% Li-Fi nem criptografia pós-quântica.
+%%
+%% Modelo: SBC (sbc-template.sty, sbc.bst e caption2.sty, distribuídos pela
+%% Sociedade Brasileira de Computação e incluídos nesta pasta sem alterações).
+%%
+%% Compilar:  make        (pdflatex; bibtex; pdflatex x2)
+\documentclass[12pt]{article}
+
+\usepackage{sbc-template}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+% "provide=*" faz o babel carregar o português a partir dos arquivos .ini, de
+% modo que o artigo compila mesmo sem o pacote texlive-lang-portuguese (nesse
+% caso só a hifenização fica menos precisa).
+\usepackage[english,brazilian,provide=*]{babel}
+\usepackage{graphicx,url}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usepgfplotslibrary{groupplots}
+\usetikzlibrary{positioning}
+\pgfplotsset{compat=1.18}
+% números dos eixos no padrão brasileiro: vírgula decimal
+\pgfkeys{/pgf/number format/use comma, /pgf/number format/1000 sep={\,}}
+\usepackage[hidelinks]{hyperref}
+
+\sloppy
+\setlength{\belowcaptionskip}{4pt}   % respiro entre a legenda e a tabela
+
+\input{data/macros.tex}   % gerado por experiments/make_figures_data.py
+\input{identidade.tex}    % autores e instituição (gerado por configurar.py)
+
+\newcommand{\SK}{\mathsf{SK}}
+\newcommand{\ek}{\mathsf{ek}}
+\newcommand{\dk}{\mathsf{dk}}
+\newcommand{\ct}{\mathsf{ct}}
+
+\title{Quanto Custa uma Troca de Chaves Pós-Quântica\\
+em um Enlace Li-Fi para IoT?}
+
+\author{\autores}
+
+\address{\instituicao}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}\selectlanguage{english}%
+Li-Fi can connect IoT sensors through the light of LED lamps, but the key
+exchange that protects such links must migrate to post-quantum algorithms,
+whose messages are about $25$ times larger. This paper asks what costs more in
+an ML-KEM key exchange over Li-Fi: computing or transmitting. We couple a
+validated ML-KEM implementation to a simulation of a Li-Fi room and separate
+the two costs. Transmission dominates: both times are equal only at
+$\val{MLKEM512CrossEn}$\,Mbit/s, nearly an order of magnitude above low-cost
+Li-Fi platforms, and ML-KEM-512 needs even less computation than X25519.
+Because corrupted packets are resent, the exchange takes $\val{PosCentreMs}$\,ms
+under the lamp and $\val{PosEdgeMs}$\,ms near the wall. Algorithms should
+therefore be chosen by message size.
+\end{abstract}
+
+\begin{resumo}
+O Li-Fi conecta sensores de IoT pela luz de LEDs, mas a troca de
+chaves que protege esses enlaces precisa migrar para algoritmos pós-quânticos,
+cujas mensagens são cerca de $25$ vezes maiores. Este artigo pergunta o que
+custa mais em uma troca de chaves ML-KEM por Li-Fi: calcular ou transmitir.
+Ligamos uma implementação validada do ML-KEM a uma sala Li-Fi simulada e
+separamos os dois custos. A transmissão domina: os tempos só se igualam
+a $\val{MLKEM512Cross}$\,Mbit/s, bem acima das plataformas Li-Fi de baixo custo, e o
+ML-KEM-512 exige menos processamento do que a X25519. Como pacotes corrompidos são reenviados, a troca leva
+$\val{PosCentreMs}$\,ms sob a luminária e $\val{PosEdgeMs}$\,ms junto à parede.
+O algoritmo deve ser escolhido pelo tamanho das mensagens.
+\end{resumo}
+
+% =====================================================================
+\input{sections/intro.tex}
+\input{sections/fund_lifi.tex}
+\input{sections/fund_pqc.tex}
+\input{sections/related.tex}
+
+% =====================================================================
+\section{Cenário e Método}\label{sec:model}
+% =====================================================================
+Esta seção descreve a sala simulada, o protocolo de troca de chaves, a forma de
+medir o seu custo e o software que produz os resultados.
+
+\input{figures/fig_system.tex}
+
+\subsection{A Sala}\label{sec:room}
+Modelamos a sala da Figura~\ref{fig:system}(a): $5\times5$\,m, com um único ponto
+de acesso (AP) de LED no centro do teto, $3{,}5$\,m acima do plano em que ficam
+os sensores. A geometria e os componentes seguem um estudo publicado de Li-Fi
+para IoT~\cite{almoliki2022lci}: um LED cujo brilho cai à metade a $70^{\circ}$
+do seu eixo e um receptor com fotodiodo de $1$\,cm$^{2}$ e campo de visão de
+$85^{\circ}$. O sinal em cada posição segue o modelo de canal da
+Eq.~\eqref{eq:gain}, e a SNR segue a Eq.~\eqref{eq:snr}, com
+$\val{PosCentreSnr}$\,dB diretamente sob a luminária. O enlace usa DCO-OFDM com
+$N=512$ subportadoras e 32-QAM (Seção~\ref{sec:fund-mod}), de modo que cada
+símbolo OFDM transporta $\val{BitsPerSymbol}$ bits, pela Eq.~\eqref{eq:bsym}, e
+a sua BER em cada posição segue as Eqs.~\eqref{eq:gammaeff}
+e~\eqref{eq:ber}; a Figura~\ref{fig:snr} mostra o resultado ao longo da linha
+central da sala.
+
+\subsection{O Protocolo de Troca de Chaves}\label{sec:protocol}
+A Figura~\ref{fig:system}(b) mostra a troca, que segue o padrão de KEM da
+Seção~\ref{sec:fund-kem}. O nó sensor cria um novo par de chaves e envia o seu
+identificador $\mathrm{ID}_N$, um número aleatório $N_c$ (um \emph{nonce},
+usado uma única vez para tornar cada troca única) e a sua chave de
+encapsulamento $\ek$. O ponto de acesso encapsula um segredo novo $K$ e devolve
+o texto cifrado $\ct$ com o seu próprio nonce $N_s$. O nó desencapsula e passa
+a ter também $K$. Os dois lados calculam então a chave de sessão, seguindo a
+recomendação da NIST SP 800-227~\cite{sp800227}:
+\begin{equation}
+\SK = \mathrm{KDF}\big(K \,\|\, N_c \,\|\, N_s \,\|\, \tau\big),
+\qquad \tau = H(\ek \,\|\, \ct),
+\label{eq:kdf}
+\end{equation}
+em que $\|$ significa ``concatenado com'', $H$ é uma função de hash e a KDF é o
+SHAKE256, da família SHA-3~\cite{fips202}. Em palavras, a Eq.~\eqref{eq:kdf}
+mistura o segredo do KEM com os dois nonces e com uma impressão digital $\tau$
+das duas mensagens trocadas. A partir daí, todos os dados do sensor são
+cifrados com $\SK$.
+
+No nosso protocolo padrão, é o nó que gera o par de chaves, como na única
+proposta anterior de Li-Fi pós-quântico~\cite{nurmurodov2025esp32}. Como um KEM
+é assimétrico, os papéis também poderiam ser invertidos; a
+Seção~\ref{sec:roles} examina essa opção.
+
+\subsection{Como Medir o Custo: Tempo de Transmissão e Tempo de Processamento}\label{sec:cost}
+O tempo de uma troca de chaves tem duas partes, e separá-las é o centro deste
+artigo. Uma analogia do dia a dia ajuda: enviar uma encomenda exige tempo para
+\emph{prepará-la} e tempo para \emph{entregá-la}. Preparar uma troca de chaves
+é o processamento no nó; entregá-la é a transmissão pela luz. Um entregador
+mais rápido encurta a entrega, mas não a preparação; por isso, em um enlace
+suficientemente rápido a preparação domina, e em um suficientemente lento, a
+entrega.
+
+\emph{Entrega.} Cada mensagem é dividida em fragmentos de $L_f=128$ bytes de
+dados, e cada fragmento é enviado com um cabeçalho de $h=8$ bytes, que contém
+um código de verificação CRC, e é respondido por uma confirmação de $a=8$ bytes
+(Seção~\ref{sec:fund-arq}). Por simplicidade, todo fragmento é enviado como um
+quadro de tamanho completo, de modo que uma mensagem curta é preenchida. Pela
+Eq.~\eqref{eq:psurv}, um fragmento sobrevive com probabilidade
+$(1-P_b)^{8(L_f+h)}$. O número de tentativas até o primeiro sucesso segue uma
+distribuição geométrica, cuja média é o inverso dessa
+probabilidade~\cite{bertsekas1992data}; assim, uma mensagem de $B$ bytes exige,
+em média,
+\begin{equation}
+\mathbb{E}[n_{\mathrm{tx}}(B)] =
+   \frac{\lceil B/L_f \rceil}{\left(1-P_b\right)^{8(L_f+h)}}
+\label{eq:arq}
+\end{equation}
+transmissões de fragmentos. Na Eq.~\eqref{eq:arq}, o numerador
+$\lceil B/L_f\rceil$ é o número de fragmentos, e o denominador é a chance de
+cada um chegar inteiro. A uma taxa de enlace de $R$ bits por segundo, cada
+transmissão ocupa $8(L_f+h+a)/R$ segundos, de modo que definimos o tempo de
+transmissão da mensagem como
+\begin{equation}
+T_{\mathrm{tx}}(B) = \mathbb{E}[n_{\mathrm{tx}}(B)]\;\frac{8\,(L_f+h+a)}{R}.
+\label{eq:tair}
+\end{equation}
+
+\emph{Preparação.} O processamento do nó, $T_{\mathrm{cpu}}$, é o tempo para
+executar \textsc{KeyGen} e \textsc{Decaps} no seu processador, obtido da
+contagem de ciclos pela Eq.~\eqref{eq:ciclos}. O ponto de acesso executa
+\textsc{Encaps}, mas é alimentado pela rede elétrica e muito mais rápido, de
+modo que desprezamos a sua parcela.
+
+\emph{Total.} Somando a Eq.~\eqref{eq:tair} para as duas mensagens e o
+processamento, a troca de chaves completa leva
+\begin{equation}
+T_{\mathrm{troca}}(R) = T_{\mathrm{tx}}(|\ek|) + T_{\mathrm{tx}}(|\ct|)
+                   + T_{\mathrm{cpu}}.
+\label{eq:ths}
+\end{equation}
+
+\emph{Cruzamento.} O tempo de transmissão diminui à medida que o enlace fica
+mais rápido, já que $R$ está no denominador da Eq.~\eqref{eq:tair}, enquanto
+$T_{\mathrm{cpu}}$ não muda. Existe, portanto, exatamente uma taxa de enlace em
+que as duas parcelas da Eq.~\eqref{eq:ths} são iguais. Nós a chamamos de
+\emph{taxa de cruzamento}; igualando
+$T_{\mathrm{tx}}(|\ek|)+T_{\mathrm{tx}}(|\ct|)$ a $T_{\mathrm{cpu}}$ e
+isolando $R$, obtém-se
+\begin{equation}
+R^{\star} = \frac{8\,(L_f+h+a)\,\big(\mathbb{E}[n_{\mathrm{tx}}(|\ek|)]
+             + \mathbb{E}[n_{\mathrm{tx}}(|\ct|)]\big)}{T_{\mathrm{cpu}}} .
+\label{eq:rstar}
+\end{equation}
+Na Eq.~\eqref{eq:rstar}, o numerador é o número total de bits enviados,
+contando as retransmissões, e o denominador é o tempo de processamento. Abaixo
+de $R^{\star}$, a troca de chaves é \emph{limitada pelo enlace}: para torná-la
+mais rápida, é preciso enviar menos bytes. Acima de $R^{\star}$, ela é
+\emph{limitada pelo processamento}: para torná-la mais rápida, é preciso um
+algoritmo ou um processador mais rápido. Descobrir onde os enlaces Li-Fi reais
+de IoT ficam em relação a $R^{\star}$ é o principal objetivo deste artigo.
+
+\subsection{O Software de Simulação}\label{sec:software}
+O simulador é escrito em Python. A sua parte criptográfica é uma implementação
+própria do ML-KEM, escrita diretamente a partir do padrão
+FIPS 203~\cite{fips203}. Para garantir que está correta, nós a verificamos com
+o teste ``acumulado'' oficial do projeto C2SP, que executa $10\,000$ trocas de
+chaves completas do ML-KEM-768, incluindo trocas corrompidas de propósito, e
+compara uma impressão digital de todas as saídas com um valor
+publicado~\cite{cctv}; a nossa implementação o reproduz exatamente. As trocas de
+chaves deste artigo movimentam, portanto, chaves e textos cifrados genuínos, do
+tamanho correto, e os dois lados de fato terminam com o mesmo segredo.
+
+O tempo de processamento $T_{\mathrm{cpu}}$ não pode ser medido no notebook que
+executa a simulação, centenas de vezes mais rápido do que um processador de
+IoT. Em seu lugar, usamos medições publicadas no ARM Cortex-M4 a $168$\,MHz
+(Seção~\ref{sec:fund-iot}): as do projeto pqm4~\cite{pqm4} para o ML-KEM, o
+BIKE e o HQC; as de Chen e Chou~\cite{chen2021mceliece} para o Classic
+McEliece; e uma implementação otimizada padrão da X25519, executada duas vezes,
+uma para criar a chave do nó e outra para combiná-la com a do ponto de acesso.
+Os tamanhos das mensagens seguem o FIPS 203, para o ML-KEM, e a documentação da
+biblioteca liboqs, versão 0.15.0, para os demais esquemas~\cite{liboqs}. A
+Tabela~\ref{tab:params} resume todos os parâmetros.
+
+\begin{table}[!htb]
+\caption{Parâmetros da simulação.}
+\label{tab:params}
+\centering
+\small
+\begin{tabular}{lr}
+\toprule
+parâmetro & valor\\
+\midrule
+sala; altura do LED acima dos sensores & $5\times5$\,m; $3{,}5$\,m\\
+ângulo de meia potência do LED; campo de visão & $70^{\circ}$; $85^{\circ}$\\
+área do fotodiodo & $1$\,cm$^{2}$\\
+SNR diretamente sob a luminária & $\val{PosCentreSnr}$\,dB\\
+subportadoras $N$; subportadoras de dados & $512$; $\val{DataSubcarriers}$\\
+constelação; bits por símbolo OFDM & 32-QAM; $\val{BitsPerSymbol}$\\
+nível de ceifamento & $\pm 3{,}2\sigma$\\
+dados por fragmento $L_f$; cabeçalho $h$; confirmação $a$ & $128$; $8$; $8$ bytes\\
+BER usada ao variar a taxa do enlace & $10^{-5}$\\
+processador & Cortex-M4, $168$\,MHz\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% =====================================================================
+\section{Resultados}\label{sec:results}
+% =====================================================================
+Primeiro percorremos uma troca de chaves à mão, para mostrar de onde vêm os
+números, e depois apresentamos os resultados completos.
+
+\subsection{Um Exemplo Passo a Passo}\label{sec:example}
+Considere uma troca de chaves ML-KEM-512 em um enlace de $100$\,kbit/s com BER
+de $10^{-5}$. A Tabela~\ref{tab:example} aplica as
+Eqs.~\eqref{eq:arq}--\eqref{eq:rstar} passo a passo.
+
+\begin{table}[!htb]
+\caption{Exemplo passo a passo: uma troca de chaves ML-KEM-512 a $100$\,kbit/s
+e BER de $10^{-5}$.}
+\label{tab:example}
+\centering
+\small
+\begin{tabular}{lr}
+\toprule
+passo & valor\\
+\midrule
+fragmentos de $\ek$ ($800$\,B) e de $\ct$ ($768$\,B) &
+   $\val{ExFragsEk} + \val{ExFragsCt} = \val{ExFrags}$\\
+bits transmitidos por fragmento, $8(128+8+8)$ & $\val{ExBitsAir}$\\
+tempo por fragmento a $100$\,kbit/s & $\val{ExFrameMs}$\,ms\\
+sobrevivência do fragmento, $(1-10^{-5})^{\val{ExBitsFrag}}$, Eq.~\eqref{eq:psurv} & $\val{ExSurvival}$\\
+transmissões esperadas, $\val{ExFrags}/\val{ExSurvival}$, Eq.~\eqref{eq:arq} & $\val{ExTx}$\\
+tempo de transmissão, $\val{ExTx}\times\val{ExFrameMs}$\,ms, Eq.~\eqref{eq:tair} & $\val{ExAirMs}$\,ms\\
+\midrule
+KeyGen $+$ Decaps, $\val{ExCycKeygen}+\val{ExCycDecaps}$ ciclos & $\val{ExCyc}$ ciclos\\
+tempo de processamento a $168$\,MHz, Eq.~\eqref{eq:ciclos} & $\val{MLKEM512Cpu}$\,ms\\
+\midrule
+tempo total da troca, Eq.~\eqref{eq:ths} & $\val{ExTotalMs}$\,ms\\
+parcela gasta transmitindo & $\val{ExAirPct}$\,\%\\
+taxa de cruzamento, $\val{ExTx}\times\val{ExBitsAir}$\,bits$\,/\,\val{MLKEM512Cpu}$\,ms, Eq.~\eqref{eq:rstar} & $\val{MLKEM512Cross}$\,Mbit/s\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Três pontos chamam a atenção. Primeiro, o processamento é minúsculo: menos de
+$5$\,ms, cerca de $\val{ExCpuPct}$\,\% do total. Segundo, os $\val{ExFrags}$
+fragmentos ocupam $\val{MLKEM512Air100k}$\,ms de transmissão, e as
+retransmissões acrescentam apenas cerca de $\val{ExRetxPct}$\,\% com essa BER.
+Terceiro, o enlace teria de ser $\val{ExSpeedup}$ vezes mais rápido, operando a
+$\val{MLKEM512Cross}$\,Mbit/s, para que calcular levasse o mesmo tempo que
+transmitir. O mesmo cálculo, repetido para cada algoritmo, taxa de enlace e
+posição, produz todos os resultados a seguir.
+
+\subsection{A Troca de Chaves É Limitada pelo Enlace}\label{sec:bandwidth}
+\input{figures/fig_rate.tex}
+
+\begin{table}[!htb]
+\caption{Custo de uma troca de chaves para cada algoritmo. ``Bytes'' é a chave
+de encapsulamento mais o texto cifrado; ``process.'' é a parcela do sensor
+(KeyGen $+$ Decaps) em um Cortex-M4 a $168$\,MHz; ``transm.'' é o tempo de
+transmissão da Eq.~\eqref{eq:tair} a $100$\,kbit/s; ``cruzamento'' é a taxa
+$R^{\star}$ da Eq.~\eqref{eq:rstar}, em que enviar leva o mesmo tempo que
+calcular.}
+\label{tab:kems}
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+ & bytes & símbolos & process. & transm. & cruzamento\\
+KEM & enviados & OFDM & (ms) & (ms) & (Mbit/s)\\
+\midrule
+X25519 (clássica)       & \val{X25519Bytes}      & 1  & \val{X25519Cpu}      & \val{X25519Air100k}      & \val{X25519Cross}\\
+\midrule
+ML-KEM-512              & \val{MLKEM512Bytes}    & \val{MLKEM512Symbols}  & \val{MLKEM512Cpu}    & \val{MLKEM512Air100k}    & \val{MLKEM512Cross}\\
+ML-KEM-768              & \val{MLKEM768Bytes}    & \val{MLKEM768Symbols}  & \val{MLKEM768Cpu}    & \val{MLKEM768Air100k}    & \val{MLKEM768Cross}\\
+ML-KEM-1024             & \val{MLKEM1024Bytes}   & \val{MLKEM1024Symbols} & \val{MLKEM1024Cpu}   & \val{MLKEM1024Air100k}   & \val{MLKEM1024Cross}\\
+\midrule
+BIKE-L1                 & \val{BIKEL1Bytes}      & \val{BIKEL1Symbols}    & \val{BIKEL1Cpu}      & \val{BIKEL1Air100k}      & \val{BIKEL1Cross}\\
+HQC-128                 & \val{HQC128Bytes}      & \val{HQC128Symbols}    & \val{HQC128Cpu}      & \val{HQC128Air100k}      & \val{HQC128Cross}\\
+McEliece-348864         & \val{ClassicMcEliece348864Bytes} & \val{ClassicMcEliece348864Symbols} & \val{ClassicMcEliece348864Cpu} & \val{ClassicMcEliece348864Air100k} & \val{ClassicMcEliece348864Cross}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A Tabela~\ref{tab:kems} e a Figura~\ref{fig:rate} trazem o resultado central.
+Cada curva da Figura~\ref{fig:rate} é a Eq.~\eqref{eq:ths} para um algoritmo e
+tem duas regiões. À esquerda, em taxas baixas, ela cai em linha reta: dobrar a
+taxa divide o tempo por dois, porque quase todo o tempo é gasto transmitindo. À
+direita, ela se achata sobre um piso, o tempo de processamento, que nenhuma
+velocidade de enlace consegue reduzir. A taxa de cruzamento $R^{\star}$ marca a
+dobra.
+
+Para os três níveis de segurança do ML-KEM, a dobra fica entre
+$\val{MLKEM1024Cross}$ e $\val{MLKEM512Cross}$\,Mbit/s. As plataformas Li-Fi de
+baixo custo para IoT operam muito abaixo disso: a OpenVLC1.3, uma plataforma
+aberta de pesquisa, alcança cerca de
+$400$\,kbit/s~\cite{galisteo2019openvlc}. Nesses enlaces, a troca de chaves
+fica bem dentro da região limitada pelo enlace, e a lição prática é que
+\emph{um algoritmo pós-quântico para Li-Fi em IoT deve ser escolhido pelo
+tamanho das suas mensagens, e não pelo seu custo de processamento}. O custo
+absoluto continua modesto: uma troca ML-KEM-512 cabe em apenas
+$\val{MLKEM512Symbols}$ símbolos OFDM e, em um enlace de vários megabits por
+segundo, leva poucos milissegundos.
+
+A comparação com a criptografia clássica é talvez o resultado mais
+surpreendente. No Cortex-M4, o ML-KEM-512 precisa de $\val{MLKEM512Cpu}$\,ms de
+processamento, e a X25519, de $\val{X25519Cpu}$\,ms: o algoritmo pós-quântico é
+\emph{mais barato} de calcular. A razão é que uma operação em curva elíptica é
+cara, e a X25519 precisa de duas, ao passo que a aritmética do ML-KEM, feita
+com números pequenos, é muito rápida (Seção~\ref{sec:fund-mlkem}). Migrar para
+a troca de chaves pós-quântica não custa, portanto, nenhum processamento
+adicional a um sensor Li-Fi. O que ela custa são $\val{MLKEM512Bytes}$ bytes
+transmitidos, em vez de $\val{X25519Bytes}$, e é por isso que, na
+Figura~\ref{fig:rate}, a curva da X25519 fica abaixo das curvas do ML-KEM em
+todas as taxas de enlace realistas.
+
+Os algoritmos baseados em códigos comportam-se de outra forma. O HQC-128 e o
+BIKE-L1 são maiores \emph{e} muito mais lentos de calcular: suas taxas de
+cruzamento são de apenas $\val{HQC128Cross}$ e $\val{BIKEL1Cross}$\,Mbit/s, de
+modo que o processamento domina o seu custo a partir de algumas dezenas de
+kbit/s. Em um enlace Li-Fi de IoT, eles perdem nos dois critérios. O Classic
+McEliece é inviável por outro motivo: sua chave pública de
+$\val{McElieceEkKiB}$\,kB exige $\val{ClassicMcEliece348864Symbols}$ símbolos
+OFDM e cerca de $\val{McElieceAirS}$\,s para ser enviada a $100$\,kbit/s. Ele só
+poderia ser usado se a chave fosse instalada previamente no dispositivo; nesse
+caso, cada troca enviaria apenas o seu texto cifrado de $\val{McElieceCt}$
+bytes.
+
+\subsection{Que Lado Deve Gerar o Par de Chaves?}\label{sec:roles}
+No nosso protocolo padrão, o sensor executa \textsc{KeyGen} e \textsc{Decaps}.
+Os papéis podem ser invertidos: o ponto de acesso publica um par de chaves, e o
+sensor executa apenas \textsc{Encaps}. No ML-KEM-512, isso reduz o
+processamento do sensor de $\val{RoleNodeCpu}$ para $\val{RoleApCpu}$\,ms, uma
+economia de $\val{RoleSaving}$\,\%, e muda a mensagem enviada pelo sensor de
+$\val{RoleNodeUp}$ para $\val{RoleApUp}$ bytes; o tempo total de transmissão
+não muda. Como a troca é limitada pelo enlace, essa economia é real, mas
+pequena em termos absolutos. Ela também tem um custo de segurança: um ponto de
+acesso que mantém o mesmo par de chaves para muitos sensores torna-se um alvo
+único e valioso e, se essa chave for roubada algum dia, todas as trocas
+passadas feitas com ela poderão ser decifradas, o que se chama perder o
+\emph{sigilo futuro} (\emph{forward secrecy}). Por isso, mantemos a geração de
+chaves no sensor por padrão e sugerimos os papéis invertidos apenas para
+sensores com orçamento de energia extremamente apertado.
+
+\subsection{O Custo Depende da Posição}\label{sec:position}
+Até aqui, a BER foi fixada em $10^{-5}$. A Figura~\ref{fig:position}(a) mostra o
+que acontece quando ela varia. Até cerca de $10^{-5}$, quase nada muda, porque
+quase todos os fragmentos chegam intactos. A partir daí, o tempo sobe de forma
+acentuada: um fragmento contém $\val{ExBitsFrag}$ bits e, pela
+Eq.~\eqref{eq:psurv}, quando uma fração perceptível dos fragmentos é
+corrompida, cada um precisa ser enviado várias vezes
+(Seção~\ref{sec:fund-arq}).
+
+\input{figures/fig_position.tex}
+
+Combinando esse efeito com a BER de cada posição (Figura~\ref{fig:snr}),
+obtém-se a Figura~\ref{fig:position}(b). A $400$\,kbit/s, uma troca de chaves
+ML-KEM-512 leva $\val{PosCentreMs}$\,ms diretamente sob a luminária, onde a BER
+é desprezível, mas $\val{PosEdgeMs}$\,ms junto à parede, onde a BER subiu para
+$\val{PosEdgeBer}$: $\val{PosRatio}$ vezes mais, apenas por causa da geometria.
+O custo de uma troca de chaves em uma sala com Li-Fi depende, portanto, de
+\emph{onde o sensor está}, e não só do algoritmo que ele usa. Isso é invisível
+para qualquer estudo que, como~\cite{nurmurodov2025esp32}, não modele o enlace
+de luz.
+
+O tamanho do fragmento também importa, e a Tabela~\ref{tab:frag} mostra como.
+Em um enlace bom, a melhor escolha são fragmentos de $\val{FragBestClean}$
+bytes, porque fragmentos maiores desperdiçam menos tempo com cabeçalhos e
+confirmações. Em um enlace ruim, com BER de $10^{-3}$, a melhor escolha cai
+para $\val{FragBestNoisy}$ bytes: fragmentos curtos gastam mais tempo com
+cabeçalhos, mas têm muito mais chance de chegar intactos. Manter fragmentos de
+$128$ bytes no enlace ruim custa $\val{FragFixedPenalty}$\,\% de tempo a mais,
+e, com fragmentos de $1$\,kB, a troca de chaves praticamente nunca termina.
+
+\begin{table}[!htb]
+\caption{Tempo da troca de chaves ML-KEM-512 (ms) a $400$\,kbit/s para
+diferentes tamanhos de fragmento e taxas de erro, pela Eq.~\eqref{eq:ths}. O
+melhor valor de cada coluna está em negrito.}
+\label{tab:frag}
+\centering
+\small
+\input{data/table_frag.tex}
+\end{table}
+
+\subsection{O que os Resultados Significam na Prática}\label{sec:practice}
+Para quem projeta um sistema Li-Fi de IoT, os resultados se traduzem em cinco
+diretrizes simples.
+\begin{enumerate}
+\item \emph{Escolha o algoritmo pelo tamanho das mensagens.} Em enlaces abaixo
+      de alguns Mbit/s, bytes transmitidos custam muito mais tempo do que
+      ciclos de processador. Entre os KEMs pós-quânticos padronizados, o ML-KEM
+      tem as menores mensagens e é a escolha clara: ML-KEM-512 ou ML-KEM-768,
+      conforme o nível de segurança exigido.
+\item \emph{Evite KEMs baseados em códigos em enlaces lentos.} O HQC e o BIKE
+      são maiores e mais lentos de calcular, e a chave pública do Classic
+      McEliece é grande demais para ser enviada.
+\item \emph{Faça a troca de chaves onde a luz é boa.} Renovar a chave quando o
+      sensor está bem iluminado não custa nada e evita a penalidade de
+      $\val{PosRatio}$ vezes junto às paredes.
+\item \emph{Adapte o tamanho do fragmento.} Fragmentos mais curtos quando o
+      enlace está ruim, mais longos quando está bom.
+\item \emph{Lembre-se de que isso acontece raramente.} Uma troca de chaves é
+      necessária uma vez por sessão, e não uma vez por mensagem. Mesmo o caso
+      mais lento acima, cerca de $\val{PosEdgeS}$\,s junto à parede, é
+      desprezível se a chave de sessão for usada por horas.
+\end{enumerate}
+
+% =====================================================================
+\section{Limitações}\label{sec:limits}
+% =====================================================================
+Este estudo tem limitações que o leitor deve ter em mente.
+
+\emph{É uma simulação.} A nossa implementação do ML-KEM é verificada com os
+vetores de teste oficiais, e o modelo do enlace concorda com as suas próprias
+fórmulas, mas nenhuma luz real foi transmitida e nenhum microcontrolador real
+foi medido. Os tempos de processamento vêm de medições publicadas em um único
+processador, o Cortex-M4. Outro chip os alteraria. O ESP32, um chip popular em
+IoT, merece um aviso particular: o seu acelerador de hardware acelera a família
+de hash SHA-2, mas não as funções SHA-3 que o ML-KEM usa, de modo que os ganhos
+de velocidade publicados para uma variante antiga do Kyber, construída sobre o
+SHA-2~\cite{segatz2025kyberesp32}, não se transferem. O nosso código aceita
+contagens de ciclos medidas, de forma que a análise pode ser repetida para
+qualquer dispositivo específico.
+
+\emph{A sala é idealizada.} Modelamos apenas o caminho direto da luminária ao
+sensor, com o sensor voltado diretamente para cima e parado. A luz refletida
+nas paredes, sensores inclinados ou em movimento e várias luminárias alterariam
+os mapas das Figuras~\ref{fig:snr} e~\ref{fig:position}. Não alterariam, porém, o
+resultado do cruzamento, que depende apenas do tamanho das mensagens e da taxa
+do enlace.
+
+\emph{A troca de chaves não é autenticada.} O nosso protocolo estabelece um
+segredo compartilhado, mas não prova quem é a outra parte; assim, um atacante
+que controlasse uma fonte de luz poderia se passar pelo ponto de acesso.
+Acrescentar uma assinatura digital pós-quântica, como o
+ML-DSA~\cite{fips204}, resolveria isso, mas uma única assinatura ML-DSA-44 tem
+$2420$ bytes, o que mais do que dobraria os tempos de transmissão relatados
+aqui. Em um enlace lento, esse custo merece um estudo próprio.
+
+% =====================================================================
+\section{Conclusão}\label{sec:conclusion}
+% =====================================================================
+Perguntamos o que demora mais quando um sensor de IoT realiza uma troca de
+chaves pós-quântica por Li-Fi: calcular ou transmitir. A resposta é
+transmitir, com ampla margem. Enviar a troca só leva o mesmo tempo que
+calculá-la em enlaces de cerca de $\val{MLKEM512Cross}$\,Mbit/s, quase uma
+ordem de grandeza acima das plataformas Li-Fi de baixo custo para IoT, e, em um
+processador típico de IoT, o ML-KEM pós-quântico é até mais barato de calcular
+do que a X25519 clássica que ele substitui. O custo de migrar para uma troca de
+chaves segura contra computadores quânticos mede-se, portanto, em bytes
+transmitidos, e não em ciclos de processador; e, como esses bytes atravessam um
+enlace óptico imperfeito, o custo depende de onde o sensor está, variando por
+um fator de $\val{PosRatio}$ dentro de uma mesma sala. Escolher os algoritmos
+pelo tamanho das mensagens e fazer as trocas de chaves quando a luz é boa
+resolve os dois efeitos sem custo algum. O passo seguinte natural é confirmar
+esses resultados com hardware real: um microcontrolador executando o ML-KEM
+sobre um enlace de LED de verdade.
+
+\bibliographystyle{sbc}
+\bibliography{refs}
+
+\end{document}

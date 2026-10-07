@@ -1,0 +1,104 @@
+% =====================================================================
+\section{Introdução}\label{sec:intro}
+% =====================================================================
+
+Imagine uma enfermaria em que cada leito tem um pequeno sensor sem fio que
+informa a frequência cardíaca e a temperatura do paciente. O rádio poderia
+interferir em parte dos equipamentos médicos, o Wi-Fi já está congestionado e,
+de qualquer forma, a sala é iluminada por lâmpadas de LED no teto. E se essas
+lâmpadas pudessem transportar os dados?
+
+Essa é a ideia do \emph{light fidelity}, ou Li-Fi. Uma lâmpada de LED é
+modulada milhões de vezes por segundo, rápido demais para alguém perceber, e
+essa variação leva os dados até um pequeno sensor de luz em cada
+dispositivo~\cite{haas2016lifi}. A tecnologia amadureceu, saindo de
+experimentos de laboratório para um padrão, o IEEE 802.11bb, publicado em 2023
+como parte da família Wi-Fi~\cite{ieee80211bb}. Ela é especialmente atraente
+para a \emph{Internet das Coisas} (IoT): a grande e crescente população de
+dispositivos pequenos, baratos e alimentados por bateria, como sensores,
+medidores e rastreadores, que medem o mundo e relatam o que encontram. Para
+esses dispositivos, o Li-Fi oferece espectro livre em abundância, nenhuma
+interferência de rádio e uma infraestrutura que já está instalada no teto.
+
+Como a luz não atravessa paredes, é comum dizer que o Li-Fi é seguro por
+natureza. Não é. Qualquer pessoa dentro da sala iluminada recebe exatamente o
+mesmo sinal que o dispositivo legítimo~\cite{blinowski2019vlcsec,
+arfaoui2020plsvlc}. Uma rede Li-Fi de IoT precisa, portanto, de criptografia
+como qualquer outra, e, antes de cifrar qualquer coisa, o sensor precisa
+combinar uma chave secreta com o ponto de acesso no teto, por esse mesmo enlace
+aberto. Essa etapa chama-se \emph{troca de chaves}.
+
+Hoje, a troca de chaves em dispositivos pequenos é feita quase sempre com um
+método de curvas elípticas, como a
+X25519~\cite{bernstein2006curve25519,rfc7748}. Ela é rápida e compacta, mas tem
+prazo de validade conhecido: um \emph{computador quântico} suficientemente
+grande poderia quebrá-la com o algoritmo de Shor~\cite{shor1997}. Essa máquina
+ainda não existe, mas isso tranquiliza menos do que parece: um atacante pode
+gravar hoje o tráfego cifrado e decifrá-lo anos depois, quando a máquina
+existir. Essa ameaça, conhecida como \emph{colher agora, decifrar depois},
+pesa mais justamente sobre os dados que a IoT coleta, como registros médicos e
+industriais, e sobre dispositivos que ficam instalados por uma década ou
+mais~\cite{mosca2018quantum}. Em 2024, o instituto norte-americano de padrões
+(NIST) publicou o primeiro padrão de troca de chaves resistente a computadores
+quânticos, chamado ML-KEM~\cite{fips203}, e a migração começou.
+
+O novo algoritmo traz um porém de ordem prática. Uma troca de chaves X25519
+envia $\val{X25519Bytes}$ bytes; uma troca ML-KEM-512 envia
+$\val{MLKEM512Bytes}$ bytes, cerca de $25$ vezes mais. Em uma rede cabeada
+rápida, ninguém notaria. Mas enlaces Li-Fi de baixo custo para IoT transportam
+apenas algumas centenas de quilobits por
+segundo~\cite{galisteo2019openvlc}, e, em um enlace assim, os bytes extras
+levam um tempo considerável para serem transmitidos. Enquanto isso, a maior
+parte da pesquisa sobre criptografia pós-quântica em dispositivos pequenos
+concentrou-se em outro custo: quantos ciclos de processador os algoritmos
+exigem~\cite{pqm4,burstinghaus2020pqm}. A única proposta anterior de um sensor
+Li-Fi pós-quântico informa quanto tempo a sua troca de chaves leva, mas sem
+nenhum modelo do enlace de luz que a transporta~\cite{nurmurodov2025esp32}; por
+isso, não consegue dizer para onde vai esse tempo.
+
+Este artigo faz uma única pergunta, simples: \emph{quando um sensor de IoT
+realiza uma troca de chaves pós-quântica por Li-Fi, o que demora mais, calcular
+ou transmitir?} Para respondê-la, ligamos uma implementação funcional do ML-KEM
+a uma simulação de uma sala com Li-Fi e medimos os dois custos, para o ML-KEM e
+para vários algoritmos alternativos, em diversas velocidades de enlace e
+posições na sala.
+
+A resposta é clara. Nos enlaces que os dispositivos Li-Fi de IoT realmente
+usam, a transmissão domina com ampla margem, e o tempo de processador quase não
+importa. Isso muda qual algoritmo se deve escolher e em que momento se deve
+realizar a troca de chaves.
+
+\subsection{Contribuições}
+\begin{enumerate}
+\item Definimos a \emph{taxa de cruzamento}, a velocidade do enlace em que
+      enviar a troca de chaves leva exatamente o mesmo tempo que calculá-la, e
+      mostramos que, para os três níveis de segurança do ML-KEM, ela fica entre
+      $\val{MLKEM1024Cross}$ e $\val{MLKEM512Cross}$\,Mbit/s. Isso é quase uma
+      ordem de grandeza acima da velocidade das plataformas Li-Fi de baixo
+      custo para IoT descritas na literatura. Nesses enlaces, o algoritmo deve
+      ser escolhido pelo tamanho das suas mensagens, e não pelo seu custo de
+      processamento.
+\item Em um processador típico de IoT (ARM Cortex-M4), o ML-KEM-512 precisa de
+      $\val{MLKEM512Cpu}$\,ms de processamento, \emph{menos} do que os
+      $\val{X25519Cpu}$\,ms da X25519 clássica que ele substitui. Migrar para a
+      troca de chaves pós-quântica não custa, portanto, nenhum processamento
+      adicional nesse tipo de dispositivo; todo o seu preço é tempo de
+      transmissão.
+\item A troca de chaves precisa entregar mais de mil bytes por um enlace
+      imperfeito antes que o sensor possa enviar qualquer outra coisa, e cada
+      pacote corrompido tem de ser reenviado. Como a taxa de erro depende de
+      quanta luz chega ao sensor, o custo da troca de chaves depende de
+      \emph{onde o sensor está na sala}: de $\val{PosCentreMs}$\,ms
+      diretamente sob a lâmpada a $\val{PosEdgeMs}$\,ms perto da parede, um
+      fator de $\val{PosRatio}$.
+\end{enumerate}
+
+Como o artigo une duas áreas que raramente se encontram, as
+Seções~\ref{sec:fund-lifi} e~\ref{sec:fund-pqc} apresentam, desde o início, os
+fundamentos necessários: primeiro como o Li-Fi transporta dados e por que os
+erros dependem da posição; depois como funciona a troca de chaves e por que a
+troca pós-quântica é maior. A Seção~\ref{sec:related} revisa os trabalhos
+relacionados, a Seção~\ref{sec:model} descreve o cenário e o método, a
+Seção~\ref{sec:results} apresenta os resultados, a Seção~\ref{sec:limits}
+discute as limitações e a Seção~\ref{sec:conclusion} conclui. Todo o código,
+os dados e as figuras estão disponíveis \repositorio.
