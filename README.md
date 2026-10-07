@@ -33,20 +33,11 @@ make check                      # confere fórmulas, referências e pendências
 src/vlckem/      mlkem (FIPS 203), optics, modulation, link, handshake
 experiments/     exp1_kem_cost.py, exp2_arq_position.py,
                  make_figures_data.py, mcu_profile.py
-tarefas/         tarefas passo a passo para o segundo autor, com gabarito
 tests/           run_tests.py, vetor acumulado do C2SP, verificar_artigo.py
 paper/           main.tex, sections/, figures/, data/, modelo da SBC
 bench/           exemplo de arquivo de tempos medidos em hardware
 configurar.py    preenche autores e instituição
 ```
-
-O texto do artigo, as tarefas e esta documentação estão em português. O
-código-fonte, seus comentários e as mensagens dos scripts de simulação estão em
-inglês, como é usual em código.
-
-**Segundo autor: comece por `tarefas/README.md`.** São sete tarefas, cerca de
-12 horas no total, cada uma com algo para executar e algo para entregar. As
-respostas esperadas estão em `tarefas/GABARITO.md`.
 
 ## Autores e instituição
 
