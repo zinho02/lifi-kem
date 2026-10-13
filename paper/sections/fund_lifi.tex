@@ -178,7 +178,7 @@ cai à metade~\cite{kahn1997wireless}:
 m = -\frac{\ln 2}{\ln\cos\Phi_{1/2}}.
 \label{eq:lambert}
 \end{equation}
-Para o LED deste trabalho, com $\Phi_{1/2}=70^{\circ}$, a
+Para o LED deste trabalho, modelado de acordo com ~\cite{almoliki2022lci}, com $\Phi_{1/2}=70^{\circ}$, a
 Eq.~\eqref{eq:lambert} fornece $m\approx0{,}65$. O termo $\cos(\psi)$ leva em
 conta a luz que chega inclinada ao detector, e $A_{\mathrm{pd}}$ é a área do
 detector: um detector maior coleta mais luz. Por fim, o receptor só enxerga a
@@ -193,8 +193,8 @@ forte é o sinal em comparação com esse ruído, grandeza chamada \emph{relaç�
 sinal-ruído} (SNR). A SNR é quase sempre expressa em decibéis (dB), uma escala
 logarítmica em que cada $10$\,dB correspondem a um fator de dez: uma SNR de
 $20$\,dB significa que a potência do sinal é $100$ vezes a do ruído, e
-$30$\,dB, $1000$ vezes. Como o ruído é aproximadamente o mesmo em toda a sala,
-enquanto o sinal segue a Eq.~\eqref{eq:gain}, a SNR em uma posição $(x,y)$
+$30$\,dB, $1000$ vezes. Para o cenário modelado neste trabalho, o ruído é aproximadamente o mesmo em toda a sala ~\cite{almoliki2022lci}, 
+enquanto o sinal segue a Eq.~\eqref{eq:gain}, de modo que a SNR em uma posição $(x,y)$
 pode ser escrita em relação à SNR no centro, $\mathrm{SNR}_{c}$:
 \begin{equation}
 \mathrm{SNR}(x,y) = \mathrm{SNR}_{c} + 20\log_{10}\frac{h(x,y)}{h(0,0)} \ \text{dB},
