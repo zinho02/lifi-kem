@@ -157,8 +157,8 @@ segredo. Por isso, o NIST recomenda alimentar uma \emph{função de derivação 
 chaves} com esse segredo e com as mensagens trocadas~\cite{sp800227}. Uma
 função de derivação de chaves é construída a partir de uma \emph{função de
 hash}, um algoritmo que transforma qualquer entrada em uma ``impressão
-digital'' de tamanho fixo, de modo que entradas diferentes produzem, na
-prática, impressões diferentes. Derivar a chave de sessão do segredo do KEM e
+digital'' de tamanho fixo, de modo que entradas diferentes, mesmo que muito semelhantes, produzem 
+impressões completamente diferentes. Derivar a chave de sessão do segredo do KEM e
 de uma impressão digital de toda a conversa amarra a chave àquela troca
 específica, de forma que uma troca adulterada gera uma chave inútil.
 
